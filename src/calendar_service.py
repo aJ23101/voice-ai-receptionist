@@ -3,6 +3,7 @@
 import datetime
 import logging
 import os.path
+import re
 import zoneinfo
 
 from google.auth.transport.requests import Request
@@ -126,6 +127,63 @@ def parse_day(text: str) -> datetime.date | None:
             return candidate
 
     return None
+
+def parse_time(text: str) -> datetime.time | None:
+    """Turn a spoken time like '10 AM' or '2:30 pm' into a time object.
+
+    Returns None if it can't be understood or isn't a valid slot start.
+    """
+    text = text.strip().lower().replace(".", "")
+
+    match = re.search(r"(\d{1,2})[:\s]?(\d{2})?\s*(am|pm)?", text)
+    if not match:
+        return None
+
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    meridiem = match.group(3)
+
+    if meridiem == "pm" and hour != 12:
+        hour += 12
+    elif meridiem == "am" and hour == 12:
+        hour = 0
+    elif meridiem is None and hour < OPENING_HOUR:
+        # "book me at 3" during clinic hours means 3 PM, not 3 AM
+        hour += 12
+
+    if not (0 <= hour <= 23) or minute not in (0, 30):
+        return None
+
+    return datetime.time(hour, minute)
+
+
+def book_appointment(date: datetime.date, time: datetime.time, name: str, service: str):
+    """Create a 30-minute appointment. Returns (success: bool, message: str)."""
+    service_client = get_service()
+
+    start = datetime.datetime.combine(date, time, tzinfo=TIMEZONE)
+    end = start + datetime.timedelta(minutes=SLOT_MINUTES)
+
+    # Re-check immediately before writing, in case the slot was taken meanwhile
+    busy = get_busy_periods(service_client, date)
+    taken = any(start < busy_end and end > busy_start for busy_start, busy_end in busy)
+
+    if taken:
+        free = get_free_slots(date)
+        if free:
+            return False, f"That slot was just taken. Still free: {', '.join(free[:3])}"
+        return False, "That slot was just taken, and nothing else is free that day."
+
+    event = {
+        "summary": f"{name} - {service}",
+        "start": {"dateTime": start.isoformat(), "timeZone": "Asia/Kolkata"},
+        "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Kolkata"},
+    }
+
+    created = service_client.events().insert(calendarId="primary", body=event).execute()
+    logger.info(f"Booked {name} on {start} (event {created['id']})")
+
+    return True, f"Booked {name} for {service} on {date} at {start.strftime('%I:%M %p').lstrip('0')}"
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from livekit.agents import (
 )
 from livekit.plugins import ai_coustics
 
-from calendar_service import get_free_slots, parse_day
+from calendar_service import book_appointment, get_free_slots, parse_day, parse_time
 
 logger = logging.getLogger("agent")
 
@@ -38,20 +38,24 @@ class Assistant(Agent):
 
                 - Open Monday to Saturday, ten in the morning to seven in the evening. Closed Sunday.
                 - Address: forty two, Lajpat Nagar, New Delhi.
-                - Services: cleaning, fillings, root canal, braces consultation.
-                - Each appointment slot is thirty minutes.
+                - Services: cleaning, filling, root canal, braces consultation.
+                - Each appointment slot is thirty minutes, starting on the hour or half hour.
                 - Doctor: Doctor Mehra.
                 - Appointments can only be booked up to one week ahead.
 
                 # Booking behaviour
 
-                - Use the check availability tool whenever a caller asks about open slots or
-                  wants to book. Never guess or invent which times are free.
-                - Pass the day to the tool exactly as the caller said it.
+                - Collect four things before booking: the caller's name, the service they
+                  need, the day, and the time. Ask for them one at a time.
+                - Services offered are cleaning, filling, root canal, and braces consultation.
+                - Use the check availability tool before offering times. Never offer a time
+                  you have not confirmed is free, and never guess.
+                - Pass the day and time to the tools exactly as the caller said them.
                 - Offer at most three times. If more are free, mention the first three.
-                - After the caller picks a time, collect their name, then tell them a staff
-                  member will call back to confirm the appointment.
-                - Ask one question at a time. Never ask for two things at once.
+                - Once you have all four details, use the booking tool. Only tell the caller
+                  the appointment is confirmed after the tool succeeds.
+                - If the tool says the slot was taken, apologise and offer the alternatives
+                  it gives you.
                 - Repeat the caller's name back to confirm you heard it correctly.
 
                 # Output rules
@@ -107,6 +111,48 @@ class Assistant(Agent):
             return f"No slots available on {day}. The clinic is fully booked that day."
 
         return f"Available slots on {day}: {', '.join(slots)}"
+
+    @function_tool
+    async def book_appointment_slot(
+        self,
+        context: RunContext,
+        day: str,
+        time: str,
+        patient_name: str,
+        service: str,
+    ):
+        """Book a confirmed appointment in the clinic calendar.
+
+        Only call this after the caller has given all four details and you have
+        confirmed the slot is free using check availability.
+
+        Args:
+            day: The day, as the caller said it, e.g. "tomorrow" or "thursday"
+            time: The time, as the caller said it, e.g. "10 AM" or "2:30 pm"
+            patient_name: The caller's full name
+            service: One of: cleaning, filling, root canal, braces consultation
+        """
+        logger.info(f"Booking {patient_name!r} on {day!r} at {time!r} for {service!r}")
+
+        date = parse_day(day)
+        if date is None:
+            return "Could not understand that day. Ask the caller to repeat it."
+
+        if date.weekday() == 6:
+            return "The clinic is closed on Sunday. Suggest another day."
+
+        slot_time = parse_time(time)
+        if slot_time is None:
+            return (
+                "Could not understand that time, or it is not a valid slot. "
+                "Appointments start on the hour or half hour."
+            )
+
+        success, message = book_appointment(date, slot_time, patient_name, service)
+
+        if success:
+            return f"{message}. Confirm the booking to the caller."
+        return message
 
 
 server = AgentServer()
