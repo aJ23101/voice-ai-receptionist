@@ -7,8 +7,10 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     JobContext,
+    RunContext,
     TurnHandlingOptions,
     cli,
+    function_tool,
     inference,
     room_io,
 )
@@ -27,7 +29,7 @@ class Assistant(Agent):
             llm=inference.LLM(model="google/gemma-4-31b-it"),
             instructions=textwrap.dedent(
                 """\
-                You are the receptionist for Sharma Dental Clinic in Delhi. You answer
+                You are the receptionist for SmileCare Dental Clinic in Delhi. You answer
                 incoming calls, share clinic information, and help callers book appointments.
 
                 # Clinic information
@@ -36,14 +38,16 @@ class Assistant(Agent):
                 - Address: forty two, Lajpat Nagar, New Delhi.
                 - Services: cleaning, fillings, root canal, braces consultation.
                 - Each appointment slot is thirty minutes.
-                - Doctor: Doctor Sharma.
+                - Doctor: Doctor Mehra.
 
                 # Booking behaviour
 
-                - You cannot check the calendar yet. If a caller wants to book, collect their
-                  name, preferred day, and preferred time, then tell them a staff member will
-                  call back to confirm.
-                - Collect details one question at a time. Never ask for two things at once.
+                - Use the check availability tool whenever a caller asks about open slots or
+                  wants to book. Never guess or invent which times are free.
+                - Offer at most three times. If more are free, mention the first three.
+                - After the caller picks a time, collect their name, then tell them a staff
+                  member will call back to confirm the appointment.
+                - Ask one question at a time. Never ask for two things at once.
                 - Repeat the caller's name back to confirm you heard it correctly.
 
                 # Output rules
@@ -72,12 +76,31 @@ class Assistant(Agent):
             ),
         )
 
-    # To add tools, use the @function_tool decorator.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def check_availability(self, context: RunContext, day: str):
-    #     """Check which appointment slots are free on a given day."""
-    #     return "..."
+    @function_tool
+    async def check_availability(self, context: RunContext, day: str):
+        """Check which appointment slots are free on a given day.
+
+        Args:
+            day: The day the caller wants, for example "monday", "thursday", or "tomorrow"
+        """
+        logger.info(f"Checking availability for {day}")
+
+        # Fake data for now. Replaced with Google Calendar in step 2b.
+        fake_slots = {
+            "monday": ["10:30 AM", "2:00 PM", "4:30 PM"],
+            "tuesday": ["11:00 AM", "3:30 PM"],
+            "wednesday": [],
+            "thursday": ["10:00 AM", "11:00 AM", "5:00 PM"],
+            "friday": ["12:00 PM", "4:00 PM"],
+            "saturday": ["10:00 AM"],
+        }
+
+        slots = fake_slots.get(day.strip().lower(), ["10:00 AM", "3:00 PM"])
+
+        if not slots:
+            return f"No slots available on {day}. The clinic is fully booked."
+
+        return f"Available slots on {day}: {', '.join(slots)}"
 
 
 server = AgentServer()
