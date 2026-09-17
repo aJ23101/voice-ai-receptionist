@@ -19,6 +19,11 @@ OPENING_HOUR = 10
 CLOSING_HOUR = 19
 SLOT_MINUTES = 30
 
+WEEKDAYS = [
+    "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday",
+]
+
 
 def get_service():
     """Authenticate and return a Google Calendar API client."""
@@ -99,10 +104,50 @@ def get_free_slots(date: datetime.date):
     return free
 
 
-if __name__ == "__main__":
-    service = get_service()
+def parse_day(text: str) -> datetime.date | None:
+    """Turn a spoken day like 'tomorrow' or 'thursday' into a date.
 
-    check_date = datetime.date(2026, 9, 17)   # Thursday, has two events
+    Only resolves today through the next seven days. Returns None if the
+    text isn't understood.
+    """
+    text = text.strip().lower()
+    today = datetime.datetime.now(TIMEZONE).date()
+
+    if text in ("today", "now"):
+        return today
+
+    if text in ("tomorrow", "tmrw"):
+        return today + datetime.timedelta(days=1)
+
+    for offset in range(7):
+        candidate = today + datetime.timedelta(days=offset)
+        name = WEEKDAYS[candidate.weekday()]
+        if name in text:
+            return candidate
+
+    return None
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "test-parse":
+        today = datetime.datetime.now(TIMEZONE).date()
+        print(f"Today is {today} ({WEEKDAYS[today.weekday()]})\n")
+        for phrase in [
+            "today", "tomorrow", "monday", "tuesday", "wednesday",
+            "thursday", "friday", "saturday", "sunday",
+            "next friday", "on Saturday please", "the 24th",
+        ]:
+            print(f"  {phrase!r:22} -> {parse_day(phrase)}")
+        sys.exit()
+
+    if len(sys.argv) > 1:
+        check_date = datetime.date.fromisoformat(sys.argv[1])
+    else:
+        check_date = datetime.date.today()
+
+    service = get_service()
 
     print(f"Busy periods on {check_date}:")
     for start, end in get_busy_periods(service, check_date):

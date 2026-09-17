@@ -16,6 +16,8 @@ from livekit.agents import (
 )
 from livekit.plugins import ai_coustics
 
+from calendar_service import get_free_slots, parse_day
+
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
@@ -39,11 +41,13 @@ class Assistant(Agent):
                 - Services: cleaning, fillings, root canal, braces consultation.
                 - Each appointment slot is thirty minutes.
                 - Doctor: Doctor Mehra.
+                - Appointments can only be booked up to one week ahead.
 
                 # Booking behaviour
 
                 - Use the check availability tool whenever a caller asks about open slots or
                   wants to book. Never guess or invent which times are free.
+                - Pass the day to the tool exactly as the caller said it.
                 - Offer at most three times. If more are free, mention the first three.
                 - After the caller picks a time, collect their name, then tell them a staff
                   member will call back to confirm the appointment.
@@ -81,24 +85,26 @@ class Assistant(Agent):
         """Check which appointment slots are free on a given day.
 
         Args:
-            day: The day the caller wants, for example "monday", "thursday", or "tomorrow"
+            day: The day the caller wants, exactly as they said it, for example
+                 "tomorrow", "thursday", or "next friday"
         """
-        logger.info(f"Checking availability for {day}")
+        logger.info(f"Checking availability for {day!r}")
 
-        # Fake data for now. Replaced with Google Calendar in step 2b.
-        fake_slots = {
-            "monday": ["10:30 AM", "2:00 PM", "4:30 PM"],
-            "tuesday": ["11:00 AM", "3:30 PM"],
-            "wednesday": [],
-            "thursday": ["10:00 AM", "11:00 AM", "5:00 PM"],
-            "friday": ["12:00 PM", "4:00 PM"],
-            "saturday": ["10:00 AM"],
-        }
+        date = parse_day(day)
 
-        slots = fake_slots.get(day.strip().lower(), ["10:00 AM", "3:00 PM"])
+        if date is None:
+            return (
+                "Could not understand that day. Ask the caller to say a weekday "
+                "name, or today or tomorrow. The clinic only books up to a week ahead."
+            )
+
+        if date.weekday() == 6:
+            return "The clinic is closed on Sunday. Suggest another day."
+
+        slots = get_free_slots(date)
 
         if not slots:
-            return f"No slots available on {day}. The clinic is fully booked."
+            return f"No slots available on {day}. The clinic is fully booked that day."
 
         return f"Available slots on {day}: {', '.join(slots)}"
 
