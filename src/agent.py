@@ -54,6 +54,9 @@ class Assistant(Agent):
                 - Offer at most three times. If more are free, mention the first three.
                 - Once you have all four details, use the booking tool. Only tell the caller
                   the appointment is confirmed after the tool succeeds.
+                - When confirming, always repeat all four back: the patient's name, the
+                  service, the day, and the time. For example: "You're booked, Priya Nair,
+                  for a cleaning tomorrow at ten in the morning."
                 - If the tool says the slot was taken, apologise and offer the alternatives
                   it gives you.
                 - Repeat the caller's name back to confirm you heard it correctly.
