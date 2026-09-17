@@ -2,21 +2,25 @@
 
 import datetime
 import logging
-import os.path
+import os
 import re
 import zoneinfo
 
 from dotenv import load_dotenv
-load_dotenv(".env.local")
-
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+load_dotenv(".env.local")
+
 logger = logging.getLogger("calendar")
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+# The calendar to read and write. Point CALENDAR_ID at a throwaway calendar
+# when running simulations, so test bookings stay out of the real one.
+CALENDAR_ID = os.environ.get("CALENDAR_ID", "primary")
 TIMEZONE = zoneinfo.ZoneInfo("Asia/Kolkata")
 
 OPENING_HOUR = 10
@@ -63,13 +67,13 @@ def get_busy_periods(service, date: datetime.date):
                 "timeMin": day_start.isoformat(),
                 "timeMax": day_end.isoformat(),
                 "timeZone": "Asia/Kolkata",
-                "items": [{"id": "primary"}],
+                "items": [{"id": CALENDAR_ID}],
             }
         )
         .execute()
     )
 
-    busy = result["calendars"]["primary"]["busy"]
+    busy = result["calendars"][CALENDAR_ID]["busy"]
     return [
         (
             datetime.datetime.fromisoformat(b["start"]).astimezone(TIMEZONE),
@@ -131,12 +135,35 @@ def parse_day(text: str) -> datetime.date | None:
 
     return None
 
+NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "fifteen": 15, "twenty": 20, "thirty": 30, "forty five": 45, "forty": 40,
+}
+
+
 def parse_time(text: str) -> datetime.time | None:
-    """Turn a spoken time like '10 AM' or '2:30 pm' into a time object.
+    """Turn a spoken time like '10 AM', '2:30 pm' or 'twelve thirty' into a time.
 
     Returns None if it can't be understood or isn't a valid slot start.
     """
     text = text.strip().lower().replace(".", "")
+
+    # "half past two" -> 2:30, "quarter to five" -> 4:45 (rejected below as
+    # an invalid slot start). Strip the qualifier first, then read the hour.
+    offset = 0
+    qualifier = re.match(r"(half|quarter)\s+(past|to)\s+(.+)", text)
+    if qualifier:
+        minutes = 30 if qualifier.group(1) == "half" else 15
+        offset = minutes if qualifier.group(2) == "past" else -minutes
+        text = qualifier.group(3)
+
+    # Convert spoken numbers to digits: "twelve thirty" -> "12 30"
+    for word in sorted(NUMBER_WORDS, key=len, reverse=True):
+        text = text.replace(word, str(NUMBER_WORDS[word]))
+
+    text = text.replace("o'clock", ":00").replace("oclock", ":00")
+    text = text.replace("noon", "12 pm").replace("midday", "12 pm")
 
     match = re.search(r"(\d{1,2})[:\s]?(\d{2})?\s*(am|pm)?", text)
     if not match:
@@ -154,11 +181,16 @@ def parse_time(text: str) -> datetime.time | None:
         # "book me at 3" during clinic hours means 3 PM, not 3 AM
         hour += 12
 
+    if offset:
+        shifted = datetime.datetime(2000, 1, 1, hour, minute) + datetime.timedelta(
+            minutes=offset
+        )
+        hour, minute = shifted.hour, shifted.minute
+
     if not (0 <= hour <= 23) or minute not in (0, 30):
         return None
 
     return datetime.time(hour, minute)
-
 
 def book_appointment(date: datetime.date, time: datetime.time, name: str, service: str):
     """Create a 30-minute appointment. Returns (success: bool, message: str)."""
@@ -183,7 +215,7 @@ def book_appointment(date: datetime.date, time: datetime.time, name: str, servic
         "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Kolkata"},
     }
 
-    created = service_client.events().insert(calendarId="primary", body=event).execute()
+    created = service_client.events().insert(calendarId=CALENDAR_ID, body=event).execute()
     logger.info(f"Booked {name} on {start} (event {created['id']})")
 
     return True, f"Booked {name} for {service} on {date} at {start.strftime('%I:%M %p').lstrip('0')}"
