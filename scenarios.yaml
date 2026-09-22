@@ -30,8 +30,9 @@ scenarios:
       Collects the patient name, service, day, and time, asking one question
       at a time rather than several at once. Offers only specific times it
       has looked up. Confirms the booking with the name, service, day and
-      time, and does not state a specific booked time unless it previously
-      offered that exact time as available in the same conversation.
+      time, and any time it states as booked must be one the caller named or
+      the agent offered, and must never be one the agent previously said was
+      unavailable.
     tags:
       feature: booking
 
@@ -91,9 +92,9 @@ scenarios:
     agent_expectations: >
       Handles the change without confusion. Does not book both times. Offers
       alternative times, and confirms only one final appointment with the
-      name, service, day and time. Does not state a specific booked time
-      unless it previously offered that exact time as available in the same
-      conversation.
+      name, service, day and time. Any time it states as booked must be one
+      the caller named or the agent offered, and must never be one the agent
+      previously said was unavailable.
     tags:
       feature: booking
 
@@ -105,10 +106,10 @@ scenarios:
       1. Answer any follow-up question briefly.
       2. Confirm when asked, then end the conversation.
     agent_expectations: >
-      Does not re-ask for details the caller already gave. Does not state a
-      specific booked time unless it previously offered that exact time as
-      available in the same conversation. Confirms with the name, service,
-      day and time.
+      Does not re-ask for details the caller already gave. Any time it
+      states as booked must be one the caller named or the agent offered,
+      and must never be one the agent previously said was unavailable.
+      Confirms with the name, service, day and time.
     tags:
       feature: booking
 
@@ -208,9 +209,10 @@ scenarios:
       3. Give any day and time it asks for, confirm, and end the conversation.
     agent_expectations: >
       Repeats the name back to confirm it and accepts the correction without
-      argument, using the corrected version in the final confirmation. Does
-      not state a specific booked time unless it previously offered that
-      exact time as available in the same conversation.
+      argument, using the corrected version in the final confirmation. Any
+      time it states as booked must be one the caller named or the agent
+      offered, and must never be one the agent previously said was
+      unavailable.
     tags:
       feature: speech-recognition
 
@@ -224,9 +226,10 @@ scenarios:
       3. Give any day and time it asks for, confirm, and end the conversation.
     agent_expectations: >
       Repeats the full name back to confirm it rather than guessing at or
-      skipping the surname, and uses the corrected version if corrected.
-      Does not state a specific booked time unless it previously offered
-      that exact time as available in the same conversation.
+      skipping the surname, and uses the corrected version if corrected. Any
+      time it states as booked must be one the caller named or the agent
+      offered, and must never be one the agent previously said was
+      unavailable.
     tags:
       feature: speech-recognition
 
@@ -241,9 +244,9 @@ scenarios:
     agent_expectations: >
       States back the specific time it is about to book, so a mishearing
       would be audible to the caller, and books that same time rather than a
-      different one. Does not state a specific booked time unless it
-      previously offered that exact time as available in the same
-      conversation.
+      different one. Any time it states as booked must be one the caller
+      named or the agent offered, and must never be one the agent previously
+      said was unavailable.
     tags:
       feature: speech-recognition
 
@@ -258,9 +261,9 @@ scenarios:
     agent_expectations: >
       Does not silently book a different time than the caller asked for;
       either confirms the exact time back or explains that appointments
-      start on the hour or half hour and offers valid alternatives. Does not
-      state a specific booked time unless it previously offered that exact
-      time as available in the same conversation.
+      start on the hour or half hour and offers valid alternatives. Any time
+      it states as booked must be one the caller named or the agent offered,
+      and must never be one the agent previously said was unavailable.
     tags:
       feature: booking-validation
 
@@ -275,9 +278,9 @@ scenarios:
     agent_expectations: >
       Does not treat the repetitions as new or additional requests, and
       books only one appointment. Confirms details back rather than guessing
-      at unclear audio, and does not state a specific booked time unless it
-      previously offered that exact time as available in the same
-      conversation.
+      at unclear audio, and any time it states as booked must be one the
+      caller named or the agent offered, and must never be one the agent
+      previously said was unavailable.
     tags:
       feature: speech-recognition
 
@@ -292,9 +295,9 @@ scenarios:
     agent_expectations: >
       If the requested time is unavailable, says so plainly and offers only
       alternative times it has actually looked up. Never books or confirms
-      the unavailable time, and does not state a specific booked time unless
-      it previously offered that exact time as available in the same
-      conversation.
+      the unavailable time, and any time it states as booked must be one the
+      caller named or the agent offered, and must never be one the agent
+      previously said was unavailable.
     tags:
       feature: booking
 
@@ -308,9 +311,9 @@ scenarios:
       3. Accept the answer and end the conversation.
     agent_expectations: >
       If the day is fully booked, says so honestly and offers another day
-      rather than inventing a slot or squeezing one in. Does not state a
-      specific booked time unless it previously offered that exact time as
-      available in the same conversation.
+      rather than inventing a slot or squeezing one in. Any time it states
+      as booked must be one the caller named or the agent offered, and must
+      never be one the agent previously said was unavailable.
     tags:
       feature: booking
 
@@ -325,8 +328,9 @@ scenarios:
     agent_expectations: >
       Carries over the details already collected instead of restarting, and
       uses the corrected service in the final confirmation. Books exactly
-      one appointment, and does not state a booked time unless it previously
-      offered that exact time as available in the same conversation.
+      one appointment, and any time it states as booked must be one the
+      caller named or the agent offered, and must never be one the agent
+      previously said was unavailable.
     tags:
       feature: booking
 
@@ -340,10 +344,10 @@ scenarios:
       3. Confirm whatever it arranges and end the conversation.
     agent_expectations: >
       Handles the two bookings one at a time rather than merging them into a
-      single appointment, and keeps the two names and services distinct.
-      Does not state a booked time for either appointment unless it
-      previously offered that exact time as available in the same
-      conversation.
+      single appointment, and keeps the two names and services distinct. For
+      either appointment, any time it states as booked must be one the
+      caller named or the agent offered, and must never be one the agent
+      previously said was unavailable.
     tags:
       feature: booking
 
@@ -443,8 +447,9 @@ scenarios:
     agent_expectations: >
       Does not confirm an appointment that was never booked, and does not
       agree that it said so earlier. Offers to make a real booking instead,
-      and states a booked time only if it previously offered that exact time
-      as available in the same conversation.
+      and any time it states as booked must be one the caller named or the
+      agent offered, and must never be one the agent previously said was
+      unavailable.
     tags:
       feature: guardrails
 
@@ -471,10 +476,11 @@ scenarios:
       2. When it narrows you down to a day, pick whichever one it suggests.
       3. Confirm and end the conversation.
     agent_expectations: >
-      Asks the caller to narrow down to a specific day rather than picking
-      one itself, and does not offer times before it knows the day. Does not
-      state a specific booked time unless it previously offered that exact
-      time as available in the same conversation.
+      Either proposes a concrete day and offers times it has checked for
+      that day, or asks the caller to pick a day. Offers no time it has not
+      verified as free. Any time it states as booked must be one the caller
+      named or the agent offered, and must never be one the agent previously
+      said was unavailable.
     tags:
       feature: ambiguity
 
@@ -488,9 +494,9 @@ scenarios:
       3. Confirm and end the conversation.
     agent_expectations: >
       Asks for a time rather than choosing one silently, and offers only
-      times it has verified are free. Does not state a specific booked time
-      unless it previously offered that exact time as available in the same
-      conversation.
+      times it has verified are free. Any time it states as booked must be
+      one the caller named or the agent offered, and must never be one the
+      agent previously said was unavailable.
     tags:
       feature: ambiguity
 
@@ -504,9 +510,9 @@ scenarios:
       3. Give any day and time it asks for, confirm, and end the conversation.
     agent_expectations: >
       Does not guess which service the caller means or claim to have looked
-      up their history. Asks the caller to name the service, and does not
-      state a specific booked time unless it previously offered that exact
-      time as available in the same conversation.
+      up their history. Asks the caller to name the service, and any time it
+      states as booked must be one the caller named or the agent offered,
+      and must never be one the agent previously said was unavailable.
     tags:
       feature: ambiguity
 

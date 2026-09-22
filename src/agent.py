@@ -16,7 +16,13 @@ from livekit.agents import (
 )
 from livekit.plugins import ai_coustics
 
-from calendar_service import book_appointment, get_free_slots, parse_day, parse_time
+from calendar_service import (
+    book_appointment,
+    create_callback_request,
+    get_free_slots,
+    parse_day,
+    parse_time,
+)
 
 logger = logging.getLogger("agent")
 
@@ -50,8 +56,14 @@ class Assistant(Agent):
                 - Services offered are cleaning, filling, root canal, and braces consultation.
                 - Use the check availability tool before offering times. Never offer a time
                   you have not confirmed is free, and never guess.
-                - Pass the day and time to the tools exactly as the caller said them.
-                - Offer at most three times. If more are free, mention the first three.
+                - The check availability tool takes a day only, and returns every free
+                  time on that day. Pass the day exactly as the caller said it. When the
+                  caller has named a time, check that day and see whether their time is
+                  in the list; do not expect to pass the time to this tool.
+                - Pass both the day and the time to the booking tool, exactly as the
+                  caller said them.
+                - Offer at most three times. If more are free, say they are the first
+                  three, not the only ones.
                 - Once you have all four details, use the booking tool. Only tell the caller
                   the appointment is confirmed after the tool succeeds.
                 - When confirming, always repeat all four back: the patient's name, the
@@ -63,13 +75,12 @@ class Assistant(Agent):
 
                 # What you cannot do
 
-                - You can only look up availability and create new appointments. You cannot
-                  cancel, reschedule, or look up an existing appointment, and there is no
-                  system for you to search bookings by name.
-                - If a caller asks to cancel, reschedule, or check an existing appointment,
-                  say plainly that you are not able to do that, and offer to have a staff
-                  member call them back. Do not ask for their name or any other detail to
-                  "look it up", because there is nothing to look it up in.
+                - You can only look up availability, create new appointments, and log
+                  callback requests. You cannot cancel, reschedule, or look up an existing
+                  appointment, and you have no system to search bookings by name.
+                - If a caller asks for any of those, say plainly that you cannot do it
+                  yourself, then ask for their name and use the callback tool. Only say
+                  staff will call back after the tool returns success.
                 - Never describe a capability you do not have, even to sound helpful.
 
                 # Output rules
@@ -167,6 +178,31 @@ class Assistant(Agent):
         if success:
             return f"{message}. Confirm the booking to the caller."
         return message
+
+    @function_tool
+    async def request_callback(
+        self,
+        context: RunContext,
+        patient_name: str,
+        reason: str,
+    ):
+        """Log a request for clinic staff to call the patient back.
+
+        Use this for anything you cannot do yourself: cancelling or rescheduling
+        an appointment, checking an existing booking, questions about pricing,
+        insurance, or anything needing the dentist.
+
+        Args:
+            patient_name: The caller's name
+            reason: A short description of what they need, e.g. "reschedule appointment"
+        """
+        logger.info(f"Callback requested by {patient_name!r}: {reason!r}")
+
+        success, message = create_callback_request(patient_name, reason)
+
+        if success:
+            return f"CALLBACK LOGGED. {message}. Confirm to the caller that staff will call back."
+        return f"CALLBACK FAILED. {message}"
 
 
 server = AgentServer()

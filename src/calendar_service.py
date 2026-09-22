@@ -28,8 +28,13 @@ CLOSING_HOUR = 19
 SLOT_MINUTES = 30
 
 WEEKDAYS = [
-    "monday", "tuesday", "wednesday", "thursday",
-    "friday", "saturday", "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
 ]
 
 
@@ -55,9 +60,7 @@ def get_service():
 
 def get_busy_periods(service, date: datetime.date):
     """Return a list of (start, end) datetimes that are already booked on this date."""
-    day_start = datetime.datetime.combine(
-        date, datetime.time(0, 0), tzinfo=TIMEZONE
-    )
+    day_start = datetime.datetime.combine(date, datetime.time(0, 0), tzinfo=TIMEZONE)
     day_end = day_start + datetime.timedelta(days=1)
 
     result = (
@@ -100,8 +103,7 @@ def get_free_slots(date: datetime.date):
         slot_end = cursor + datetime.timedelta(minutes=SLOT_MINUTES)
 
         overlaps = any(
-            cursor < busy_end and slot_end > busy_start
-            for busy_start, busy_end in busy
+            cursor < busy_end and slot_end > busy_start for busy_start, busy_end in busy
         )
 
         if not overlaps:
@@ -135,10 +137,25 @@ def parse_day(text: str) -> datetime.date | None:
 
     return None
 
+
 NUMBER_WORDS = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
-    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
-    "fifteen": 15, "twenty": 20, "thirty": 30, "forty five": 45, "forty": 40,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "fifteen": 15,
+    "twenty": 20,
+    "thirty": 30,
+    "forty five": 45,
+    "forty": 40,
 }
 
 
@@ -192,6 +209,7 @@ def parse_time(text: str) -> datetime.time | None:
 
     return datetime.time(hour, minute)
 
+
 def book_appointment(date: datetime.date, time: datetime.time, name: str, service: str):
     """Create a 30-minute appointment. Returns (success: bool, message: str)."""
     service_client = get_service()
@@ -215,10 +233,40 @@ def book_appointment(date: datetime.date, time: datetime.time, name: str, servic
         "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Kolkata"},
     }
 
-    created = service_client.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+    created = (
+        service_client.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+    )
     logger.info(f"Booked {name} on {start} (event {created['id']})")
 
-    return True, f"Booked {name} for {service} on {date} at {start.strftime('%I:%M %p').lstrip('0')}"
+    return (
+        True,
+        f"Booked {name} for {service} on {date} at {start.strftime('%I:%M %p').lstrip('0')}",
+    )
+
+
+def create_callback_request(name: str, reason: str):
+    """Log a callback request as an all-day event. Returns (success, message)."""
+    service_client = get_service()
+
+    today = datetime.datetime.now(TIMEZONE).date()
+
+    event = {
+        "summary": f"CALLBACK: {name} - {reason}",
+        "description": (
+            f"Callback requested by {name}.\n"
+            f"Reason: {reason}\n"
+            f"Logged by the voice receptionist."
+        ),
+        "start": {"date": today.isoformat()},
+        "end": {"date": (today + datetime.timedelta(days=1)).isoformat()},
+    }
+
+    created = (
+        service_client.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+    )
+    logger.info(f"Callback request logged for {name} (event {created['id']})")
+
+    return True, f"Callback request logged for {name}"
 
 
 if __name__ == "__main__":
@@ -228,9 +276,18 @@ if __name__ == "__main__":
         today = datetime.datetime.now(TIMEZONE).date()
         print(f"Today is {today} ({WEEKDAYS[today.weekday()]})\n")
         for phrase in [
-            "today", "tomorrow", "monday", "tuesday", "wednesday",
-            "thursday", "friday", "saturday", "sunday",
-            "next friday", "on Saturday please", "the 24th",
+            "today",
+            "tomorrow",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+            "next friday",
+            "on Saturday please",
+            "the 24th",
         ]:
             print(f"  {phrase!r:22} -> {parse_day(phrase)}")
         sys.exit()
