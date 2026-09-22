@@ -1,163 +1,108 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
+# Voice AI Receptionist
 
-# LiveKit Agents Starter - Python
+A production-shaped voice AI receptionist for a dental clinic. It answers the phone, holds a natural spoken conversation, and books real appointments into Google Calendar — checking live availability before it offers a time, and never confirming a booking the calendar did not accept.
 
-A complete starter project for building voice AI apps with [LiveKit Agents for Python](https://github.com/livekit/agents) and [LiveKit Cloud](https://cloud.livekit.io/).
+Built on [LiveKit Agents](https://github.com/livekit/agents) for Python.
 
-The starter project includes:
+```
+Caller ──▶ STT ──▶ LLM ──▶ TTS ──▶ Caller
+                    │
+                    ├── check_availability ──┐
+                    ├── book_appointment_slot ├──▶ Google Calendar API
+                    └── request_callback ─────┘
+```
 
-- A simple voice AI assistant, ready for extension and customization
-- A voice AI pipeline built on [LiveKit Inference](https://docs.livekit.io/agents/models/inference), providing zero-configuration access to [models](https://docs.livekit.io/agents/models) from top labs
-  - Uses the fast, open-weight Gemma 4 31B model, [hosted by LiveKit](https://docs.livekit.io/agents/models/llm/livekit/) and tuned for optimal performance in voice AI, as the default LLM
-  - Uses Fish Audio S2.1 Pro for TTS, which renders the inline delivery markup that expressive mode relies on
-  - Supports more than 50 models from OpenAI, Cartesia, Deepgram, and other providers
-  - Access to a wide range of other models, including [Realtime models](https://docs.livekit.io/agents/models/realtime), through extensive plugin ecosystem
-- Expressive mode, enabled by default: the framework injects the TTS provider's markup guide into the LLM prompt, so the model emits inline delivery tags (emotion, pacing, non-verbal sounds) that the TTS renders and the transcript never shows
-- Eval suite based on the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/)
-- [LiveKit Turn Detector](https://docs.livekit.io/agents/logic/turns/turn-detector/), an end-of-turn model that listens to the user's audio directly, combining semantic understanding with acoustic cues for state-of-the-art accuracy across 14 languages
-- [Background voice cancellation](https://docs.livekit.io/transport/media/noise-cancellation/)
-- Deep session insights from LiveKit [Agent Observability](https://docs.livekit.io/deploy/observability/)
-- A Dockerfile ready for [production deployment to LiveKit Cloud](https://docs.livekit.io/deploy/agents/)
+## What it does
 
-This starter app is compatible with any [custom web/mobile frontend](https://docs.livekit.io/frontends/) or [telephony](https://docs.livekit.io/telephony/).
+The agent plays receptionist for *SmileCare Dental Clinic* — open Mon–Sat, 10:00–19:00, thirty-minute slots, four services, bookings up to a week out. Over a call it will:
 
-## Using coding agents
+- **Answer clinic questions** — hours, address, services, the doctor's name.
+- **Book an appointment end to end** — collecting the caller's name, service, day and time one question at a time, reading live free/busy data from Google Calendar before offering any slot, then writing the confirmed event.
+- **Log a callback** when the caller wants something it genuinely cannot do — cancel, reschedule, look up an existing booking, or ask about pricing and insurance.
 
-This project is designed to work with coding agents like [Claude Code](https://claude.com/product/claude-code), [Cursor](https://www.cursor.com/), and [Codex](https://openai.com/codex/).
+It is also built to **fail honestly**, which is most of the engineering:
 
-For your convenience, LiveKit offers both a CLI and an [MCP server](https://docs.livekit.io/reference/developer-tools/docs-mcp/) that can be used to browse and search its documentation. The [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/) (`lk docs`) works with any coding agent that can run shell commands. Install it for your platform:
+- It never offers a time it has not confirmed is free, and never invents clinic information.
+- It re-checks the calendar immediately before writing, so a slot taken mid-conversation is caught and alternatives are offered instead of double-booking.
+- It refuses to diagnose or discuss symptoms, and offers a consultation instead.
+- It states plainly what it cannot do rather than inventing a capability to sound helpful.
 
-**macOS:**
+## Engineering notes
+
+**Spoken input is not clean input.** Callers say "half past two", "tomorrow", "next friday", "book me at 3". `parse_day` and `parse_time` in [`src/calendar_service.py`](src/calendar_service.py) turn that into real dates and times — resolving relative days within a one-week booking window, expanding spoken number words, handling `half past` / `quarter to` qualifiers, and reading a bare "3" as 3 PM because the clinic is shut at 3 AM. Anything that is not a valid half-hour slot start is rejected rather than guessed at, and the rejection is handed back to the LLM as an instruction for what to ask next.
+
+**Tools return instructions, not data.** Each tool's return value tells the model what to do with the result (`"That slot was just taken. Still free: ..."`), which keeps slot-handling logic out of the prompt and makes the failure paths testable.
+
+**Race conditions are handled.** `book_appointment` queries free/busy again between the availability check and the write, so two callers converging on the same slot cannot both be confirmed.
+
+**Timezone-correct throughout.** All datetimes are `Asia/Kolkata`-aware; no naive datetimes reach the Calendar API.
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Orchestration | LiveKit Agents (Python) |
+| STT | AssemblyAI Universal 3.5 Pro |
+| LLM | Gemma 4 31B via LiveKit Inference |
+| TTS | Fish Audio S2.1 Pro |
+| Turn detection | LiveKit turn detector, adaptive interruption, preemptive generation |
+| Audio | ai-coustics background voice cancellation |
+| Booking backend | Google Calendar API (OAuth 2.0) |
+| Tests | pytest, plus LiveKit simulation scenarios |
+
+## Testing
+
+Two layers, because conversation quality and parsing correctness fail in different ways.
+
+**Unit tests** cover the day/time parsing and slot logic with no LLM or live session:
 
 ```console
-brew install livekit-cli
+uv run pytest
 ```
 
-**Linux:**
-
-```console
-curl -sSL https://get.livekit.io/cli | bash
-```
-
-**Windows:**
-
-```console
-winget install LiveKit.LiveKitCLI
-```
-
-The `lk docs` subcommand requires version 2.15.0 or higher. Check your version with `lk --version` and update if needed. Once installed, your coding agent can search and browse LiveKit documentation directly from the terminal:
-
-```console
-lk docs search "voice agents"
-lk docs get-page /agents/start/voice-ai-quickstart
-```
-
-See the [Using coding agents](https://docs.livekit.io/intro/coding-agents/) guide for more details, including MCP server setup.
-
-The project includes a complete [AGENTS.md](AGENTS.md) file for these assistants. You can modify this file to suit your needs. To learn more about this file, see [https://agents.md](https://agents.md).
-
-## Dev Setup
-
-Create a project from this template with the LiveKit CLI (recommended):
-
-```bash
-lk cloud auth
-lk agent init my-agent --template agent-starter-python
-```
-
-The CLI clones the template and configures your environment. Then follow the rest of this guide from [Run the agent](#run-the-agent).
-
-<details>
-<summary>Alternative: Manual setup without the CLI</summary>
-
-Clone the repository and install dependencies to a virtual environment:
-
-```console
-cd agent-starter-python
-uv sync
-```
-
-Sign up for [LiveKit Cloud](https://cloud.livekit.io/) then set up the environment by copying `.env.example` to `.env.local` and filling in the required keys:
-
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
-
-You can load the LiveKit environment automatically using the [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/):
-
-```bash
-lk cloud auth
-lk app env --write --destination .env.local
-```
-
-</details>
-
-## Run the agent
-
-Run this command to speak to your agent directly in your terminal:
-
-```console
-uv run python src/agent.py console
-```
-
-To run the agent for use with a frontend or telephony, use the `dev` command:
-
-```console
-uv run python src/agent.py dev
-```
-
-In production, use the `start` command:
-
-```console
-uv run python src/agent.py start
-```
-
-## Frontend & Telephony
-
-Get started quickly with our pre-built frontend starter apps, or add telephony support:
-
-| Platform | Link | Description |
-|----------|----------|-------------|
-| **Web** | [`livekit-examples/agent-starter-react`](https://github.com/livekit-examples/agent-starter-react) | Web voice AI assistant with React & Next.js |
-| **iOS/macOS** | [`livekit-examples/agent-starter-swift`](https://github.com/livekit-examples/agent-starter-swift) | Native iOS, macOS, and visionOS voice AI assistant |
-| **Flutter** | [`livekit-examples/agent-starter-flutter`](https://github.com/livekit-examples/agent-starter-flutter) | Cross-platform voice AI assistant app |
-| **React Native** | [`livekit-examples/voice-assistant-react-native`](https://github.com/livekit-examples/voice-assistant-react-native) | Native mobile app with React Native & Expo |
-| **Android** | [`livekit-examples/agent-starter-android`](https://github.com/livekit-examples/agent-starter-android) | Native Android app with Kotlin & Jetpack Compose |
-| **Web Embed** | [`livekit-examples/agent-starter-embed`](https://github.com/livekit-examples/agent-starter-embed) | Voice AI widget for any website |
-| **Telephony** | [Documentation](https://docs.livekit.io/telephony/) | Add inbound or outbound calling to your agent |
-
-For advanced customization, see the [complete frontend guide](https://docs.livekit.io/frontends/).
-
-## Tests and evals
-
-Simulations run full multi-turn conversations between a simulated user and your agent on LiveKit Cloud, then judge each transcript. The scenarios live in [`scenarios.yaml`](scenarios.yaml). Run them locally with the [LiveKit CLI](https://docs.livekit.io/intro/basics/cli/):
+**Simulation scenarios** run full multi-turn conversations between a simulated caller and the agent on LiveKit Cloud, then judge each transcript. [`scenarios.yaml`](scenarios.yaml) holds 33 of them, written around the ways a real call goes wrong — a caller on a noisy line repeating themselves, an unusual name that is easy to mishear, an off-grid time like 10:15, a caller changing the service mid-booking, someone pressuring the agent to confirm a booking it never made, and a caller insisting the clinic is open on Sunday.
 
 ```console
 lk agent simulate --scenarios scenarios.yaml
 ```
 
-The `Simulations` workflow in `.github/workflows/simulations.yml` runs the same file on every merge to `main` and on demand from the Actions tab. It runs there rather than on every pull request push because each run spends real inference. See the [simulations guide](https://docs.livekit.io/agents/start/testing/simulations/) for how to write scenarios and read results.
+These run in CI on every merge to `main` via `.github/workflows/simulations.yml`.
 
-For turn-level checks that don't need a live session, the LiveKit Agents [testing & evaluation framework](https://docs.livekit.io/agents/start/testing/) runs your agent in-process under `pytest`. A commented-out example lives in [`tests/test_agent.py`](tests/test_agent.py).
+## Running it
 
-## Using this template repo for your own project
+Requires [`uv`](https://docs.astral.sh/uv/) and a [LiveKit Cloud](https://cloud.livekit.io/) project.
 
-Once you've started your own project based on this repo, you should:
+```console
+uv sync
+cp .env.example .env.local     # fill in LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, CALENDAR_ID
+```
 
-1. **Check in your `uv.lock`**: This file is currently untracked for the template, but you should commit it to your repository for reproducible builds and proper configuration management. (The same applies to `livekit.toml`, if you run your agents in LiveKit Cloud)
+For Google Calendar, place an OAuth client `credentials.json` in the project root; the first run opens a browser consent flow and caches `token.json`. Both files are gitignored. Point `CALENDAR_ID` at a throwaway calendar when running simulations so test bookings stay out of the real one.
 
-2. **Add your own repository secrets**: You must [add secrets](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-secrets-in-github-actions) for `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` so that the simulations can run in CI.
+Talk to the agent in your terminal:
 
-## Deploying to production
+```console
+uv run python src/agent.py console
+```
 
-This project is production-ready and includes a working `Dockerfile`. To deploy it to LiveKit Cloud or another environment, see the [deploying to production](https://docs.livekit.io/deploy/agents/) guide.
+Run it for a frontend or a phone number:
 
-## Self-hosted LiveKit
+```console
+uv run python src/agent.py dev      # development
+uv run python src/agent.py start    # production
+```
 
-You can also self-host LiveKit instead of using LiveKit Cloud. See the [self-hosting](https://docs.livekit.io/transport/self-hosting/local/) guide for more information. If you choose to self-host, you'll need to also use [model plugins](https://docs.livekit.io/agents/models/#plugins) instead of LiveKit Inference and will need to remove the [LiveKit Cloud noise cancellation](https://docs.livekit.io/transport/media/noise-cancellation/) plugin.
+A `Dockerfile` is included for deployment to LiveKit Cloud or any container host. Connect any [frontend starter](https://docs.livekit.io/frontends/) or a [SIP trunk](https://docs.livekit.io/telephony/) for real phone calls.
+
+## Layout
+
+```
+src/agent.py              Agent definition, prompt, and the three tools
+src/calendar_service.py   Google Calendar client, day/time parsing, slot logic
+tests/test_calendar.py    Unit tests for parsing and slot validation
+scenarios.yaml            33 conversation-level simulation scenarios
+```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE). Built from the [LiveKit Agents Python starter](https://github.com/livekit-examples/agent-starter-python).
