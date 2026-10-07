@@ -18,6 +18,6 @@ services:
       - key: TURNSTILE_SECRET_KEY
         sync: false
       - key: TURNSTILE_ALLOWED_HOSTNAME
-        sync: false
+        value: voice-ai-receptionist-beta.vercel.app
       - key: FRONTEND_ORIGIN
-        sync: false
+        value: https://voice-ai-receptionist-beta.vercel.app

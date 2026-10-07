@@ -137,17 +137,16 @@ The repository is public already. To make the browser demo accessible:
 3. **Import the repository into Vercel.** Choose
    `aJ23101/voice-ai-receptionist`, then set the project **Root Directory** to
    `web`. Vercel detects Vite; use `npm run build` and `dist` if it asks for
-   build settings. Deploy once to get the project's production hostname.
-4. **Create a Cloudflare Turnstile widget.** Add the production hostname
-   assigned to your Vercel project (for example, `your-project.vercel.app`) as
-   an allowed hostname. Keep the site key for Vercel; keep the secret key
-   private for Render.
+   build settings. The production site is
+   `https://voice-ai-receptionist-beta.vercel.app`.
+4. **Create a Cloudflare Turnstile widget.** Add
+   `voice-ai-receptionist-beta.vercel.app` as an allowed hostname. Keep the
+   site key for Vercel; keep the secret key private for Render.
 5. **Deploy the token API to Render.** Create a Render Blueprint from
    `render.yaml`. Add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
-   `TURNSTILE_SECRET_KEY`, `TURNSTILE_ALLOWED_HOSTNAME`, and `FRONTEND_ORIGIN`
-   when prompted. Use the exact Vercel hostname (without `https://`) for
-   `TURNSTILE_ALLOWED_HOSTNAME` and the full site origin for `FRONTEND_ORIGIN`.
-   Do not expose API secrets as Vite variables.
+   and `TURNSTILE_SECRET_KEY` when prompted. The Blueprint configures
+   `TURNSTILE_ALLOWED_HOSTNAME` and `FRONTEND_ORIGIN` for the Vercel production
+   site. Do not expose API secrets as Vite variables.
 6. **Set the frontend variables in Vercel.** Under **Project → Settings →
    Environment Variables**, add these for the **Production** environment:
    - `VITE_TOKEN_ENDPOINT_URL`: the Render URL ending in `/api/token`
@@ -156,8 +155,8 @@ The repository is public already. To make the browser demo accessible:
    Redeploy after adding or changing build-time variables. Keep the variables
    out of preview deployments; the API only allows the configured production
    hostname and origin.
-7. **Publish and link it.** Redeploy the production branch in Vercel, open the
-   generated `https://<your-project>.vercel.app` URL, and test the call flow.
+7. **Publish and link it.** Redeploy the production branch in Vercel, open
+   `https://voice-ai-receptionist-beta.vercel.app`, and test the call flow.
    Set the deployed URL as the repository's **About → Website** link so it is
    visible at the top of GitHub.
 
