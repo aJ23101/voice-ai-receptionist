@@ -1,6 +1,7 @@
 """Google Calendar integration for the receptionist agent."""
 
 import datetime
+import json
 import logging
 import os
 import re
@@ -8,6 +9,7 @@ import zoneinfo
 
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
+from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -40,6 +42,21 @@ WEEKDAYS = [
 
 def get_service():
     """Authenticate and return a Google Calendar API client."""
+    service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if service_account_json:
+        try:
+            service_account_info = json.loads(service_account_json)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "GOOGLE_SERVICE_ACCOUNT_JSON must contain valid JSON."
+            ) from error
+
+        creds = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=SCOPES,
+        )
+        return build("calendar", "v3", credentials=creds)
+
     creds = None
 
     if os.path.exists("token.json"):

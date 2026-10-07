@@ -33,6 +33,13 @@ coverage/
 # Environment variables
 .env
 .env.*
+credentials.json
+token.json
+
+# Browser frontend build dependencies and output
+web/node_modules/
+web/dist/
+web/.env*
 
 # VCS, editor, OS
 .git

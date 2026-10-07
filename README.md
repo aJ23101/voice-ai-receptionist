@@ -1,108 +1,214 @@
-# Voice AI Receptionist
+# SmileCare Voice AI Receptionist
 
-A production-shaped voice AI receptionist for a dental clinic. It answers the phone, holds a natural spoken conversation, and books real appointments into Google Calendar — checking live availability before it offers a time, and never confirming a booking the calendar did not accept.
+[![Tests](https://github.com/aJ23101/voice-ai-receptionist/actions/workflows/tests.yml/badge.svg)](https://github.com/aJ23101/voice-ai-receptionist/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Built on [LiveKit Agents](https://github.com/livekit/agents) for Python.
+A browser-based voice receptionist for a fictional dental clinic. It answers
+questions, checks live Google Calendar availability, and books appointments
+only after the calendar accepts them.
 
+**[Deploy the browser demo on Vercel](https://vercel.com/new)** ·
+**[Browse the source](https://github.com/aJ23101/voice-ai-receptionist)**
+
+Vercel assigns the public demo URL after the first deployment. Add that URL to
+the repository's **About → Website** field so recruiters can find it. This is
+an interactive portfolio project, not a real clinic service.
+
+## The experience
+
+- Speak naturally to ask about the clinic or request an appointment.
+- The receptionist checks Google Calendar before offering a time.
+- It checks again just before booking to avoid confirming a slot taken during
+  the conversation.
+- Unsupported requests, including cancellations, pricing, and medical advice,
+  are handled honestly and routed to a callback request.
+- A purpose-built browser UI connects to the LiveKit agent over WebRTC.
+
+> **Demo safety:** Use a dedicated test Google Calendar and fictional details.
+> The demo can write calendar events. Do not enter real patient, medical, or
+> other sensitive information.
+
+## Architecture
+
+```text
+Browser (React + LiveKit WebRTC)
+        │
+        ├── Turnstile challenge
+        ▼
+Token API (FastAPI on Render)
+  - verifies the challenge
+  - rate-limits requests
+  - issues a short-lived, room-scoped token
+        │
+        ▼
+LiveKit Cloud agent (Python)
+  ├── LiveKit Inference: AssemblyAI STT, Gemma LLM, Fish Audio TTS
+  └── Google Calendar: availability, booking, callback events
 ```
-Caller ──▶ STT ──▶ LLM ──▶ TTS ──▶ Caller
-                    │
-                    ├── check_availability ──┐
-                    ├── book_appointment_slot ├──▶ Google Calendar API
-                    └── request_callback ─────┘
-```
 
-## What it does
-
-The agent plays receptionist for *SmileCare Dental Clinic* — open Mon–Sat, 10:00–19:00, thirty-minute slots, four services, bookings up to a week out. Over a call it will:
-
-- **Answer clinic questions** — hours, address, services, the doctor's name.
-- **Book an appointment end to end** — collecting the caller's name, service, day and time one question at a time, reading live free/busy data from Google Calendar before offering any slot, then writing the confirmed event.
-- **Log a callback** when the caller wants something it genuinely cannot do — cancel, reschedule, look up an existing booking, or ask about pricing and insurance.
-
-It is also built to **fail honestly**, which is most of the engineering:
-
-- It never offers a time it has not confirmed is free, and never invents clinic information.
-- It re-checks the calendar immediately before writing, so a slot taken mid-conversation is caught and alternatives are offered instead of double-booking.
-- It refuses to diagnose or discuss symptoms, and offers a consultation instead.
-- It states plainly what it cannot do rather than inventing a capability to sound helpful.
-
-## Engineering notes
-
-**Spoken input is not clean input.** Callers say "half past two", "tomorrow", "next friday", "book me at 3". `parse_day` and `parse_time` in [`src/calendar_service.py`](src/calendar_service.py) turn that into real dates and times — resolving relative days within a one-week booking window, expanding spoken number words, handling `half past` / `quarter to` qualifiers, and reading a bare "3" as 3 PM because the clinic is shut at 3 AM. Anything that is not a valid half-hour slot start is rejected rather than guessed at, and the rejection is handed back to the LLM as an instruction for what to ask next.
-
-**Tools return instructions, not data.** Each tool's return value tells the model what to do with the result (`"That slot was just taken. Still free: ..."`), which keeps slot-handling logic out of the prompt and makes the failure paths testable.
-
-**Race conditions are handled.** `book_appointment` queries free/busy again between the availability check and the write, so two callers converging on the same slot cannot both be confirmed.
-
-**Timezone-correct throughout.** All datetimes are `Asia/Kolkata`-aware; no naive datetimes reach the Calendar API.
+The browser never receives LiveKit API secrets. The token service restricts
+cross-origin requests to the published site, validates Cloudflare Turnstile,
+limits requests per client, and issues tokens for a single demo room with
+media publishing enabled and data publishing disabled.
 
 ## Stack
 
-| Layer | Choice |
+| Area | Technology |
 |---|---|
-| Orchestration | LiveKit Agents (Python) |
-| STT | AssemblyAI Universal 3.5 Pro |
-| LLM | Gemma 4 31B via LiveKit Inference |
-| TTS | Fish Audio S2.1 Pro |
-| Turn detection | LiveKit turn detector, adaptive interruption, preemptive generation |
-| Audio | ai-coustics background voice cancellation |
-| Booking backend | Google Calendar API (OAuth 2.0) |
-| Tests | pytest, plus LiveKit simulation scenarios |
+| Voice agent | LiveKit Agents for Python |
+| Speech | AssemblyAI Universal 3.5 Pro, Gemma 4 31B, Fish Audio S2.1 Pro |
+| Browser | React, TypeScript, Vite, LiveKit React components |
+| Calendar | Google Calendar API, OAuth for local development or a service account in cloud |
+| Demo authentication | FastAPI, Cloudflare Turnstile, short-lived LiveKit tokens |
+| Hosting | LiveKit Cloud, Vercel, Render |
+| Quality | pytest, Ruff, TypeScript build, LiveKit conversation simulations |
 
-## Testing
+## Run locally
 
-Two layers, because conversation quality and parsing correctness fail in different ways.
+### 1. Configure the agent and calendar
 
-**Unit tests** cover the day/time parsing and slot logic with no LLM or live session:
+Install [uv](https://docs.astral.sh/uv/) and create a LiveKit Cloud project.
+Then:
 
 ```console
-uv run pytest
+uv sync
 ```
 
-**Simulation scenarios** run full multi-turn conversations between a simulated caller and the agent on LiveKit Cloud, then judge each transcript. [`scenarios.yaml`](scenarios.yaml) holds 33 of them, written around the ways a real call goes wrong — a caller on a noisy line repeating themselves, an unusual name that is easy to mishear, an off-grid time like 10:15, a caller changing the service mid-booking, someone pressuring the agent to confirm a booking it never made, and a caller insisting the clinic is open on Sunday.
+Copy `.env.example` to `.env.local` and set the LiveKit credentials and a
+dedicated test `CALENDAR_ID`. For local calendar development, place a Google
+OAuth client file named `credentials.json` in the repository root; the first
+calendar request opens the consent flow and saves `token.json`.
+
+Run the agent:
+
+```console
+uv run python src/agent.py dev
+```
+
+For the hosted agent, use a Google service account instead of interactive
+OAuth. Set `GOOGLE_SERVICE_ACCOUNT_JSON` to its JSON key and share the
+dedicated test calendar with the service account's email address. When this
+variable is present, the agent uses it without reading local OAuth files.
+
+### 2. Start the token API
+
+Create a Cloudflare Turnstile widget for `localhost` and put its **secret**
+key in `.env.local`. Set:
+
+```text
+TURNSTILE_ALLOWED_HOSTNAME=localhost
+FRONTEND_ORIGIN=http://localhost:5173
+LIVEKIT_AGENT_NAME=voice-ai-receptionist
+```
+
+Start the API in a second terminal:
+
+```console
+uv run uvicorn src.token_server:app --env-file .env.local --reload --port 8000
+```
+
+### 3. Start the browser app
+
+Copy `web/.env.example` to `web/.env.local`, set the public Turnstile site
+key, then:
+
+```console
+cd web
+npm ci
+npm run dev
+```
+
+Open the local URL printed by Vite. The browser app uses the local token API;
+the agent and calendar still need valid credentials.
+
+## Publish the recruiter demo
+
+The repository is public already. To make the browser demo accessible:
+
+1. **Deploy the agent to LiveKit Cloud.** Install the LiveKit CLI, then run
+   `lk cloud auth` and `lk agent create` from the repository. The current
+   deployment workflow and CLI commands are documented in the
+   [LiveKit agent deployment guide](https://docs.livekit.io/deploy/agents/quickstart/).
+2. **Configure the deployed agent secrets.** Add `GOOGLE_SERVICE_ACCOUNT_JSON`
+   and `CALENDAR_ID` to the LiveKit Cloud agent secrets. Use a separate,
+   throwaway Google Calendar, enable the Google Calendar API, and share the
+   calendar with the service account. Never use a real clinic calendar for
+   this public demo.
+3. **Import the repository into Vercel.** Choose
+   `aJ23101/voice-ai-receptionist`, then set the project **Root Directory** to
+   `web`. Vercel detects Vite; use `npm run build` and `dist` if it asks for
+   build settings. Deploy once to get the project's production hostname.
+4. **Create a Cloudflare Turnstile widget.** Add the production hostname
+   assigned to your Vercel project (for example, `your-project.vercel.app`) as
+   an allowed hostname. Keep the site key for Vercel; keep the secret key
+   private for Render.
+5. **Deploy the token API to Render.** Create a Render Blueprint from
+   `render.yaml`. Add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
+   `TURNSTILE_SECRET_KEY`, `TURNSTILE_ALLOWED_HOSTNAME`, and `FRONTEND_ORIGIN`
+   when prompted. Use the exact Vercel hostname (without `https://`) for
+   `TURNSTILE_ALLOWED_HOSTNAME` and the full site origin for `FRONTEND_ORIGIN`.
+   Do not expose API secrets as Vite variables.
+6. **Set the frontend variables in Vercel.** Under **Project → Settings →
+   Environment Variables**, add these for the **Production** environment:
+   - `VITE_TOKEN_ENDPOINT_URL`: the Render URL ending in `/api/token`
+   - `VITE_TURNSTILE_SITE_KEY`: the public Turnstile site key
+
+   Redeploy after adding or changing build-time variables. Keep the variables
+   out of preview deployments; the API only allows the configured production
+   hostname and origin.
+7. **Publish and link it.** Redeploy the production branch in Vercel, open the
+   generated `https://<your-project>.vercel.app` URL, and test the call flow.
+   Set the deployed URL as the repository's **About → Website** link so it is
+   visible at the top of GitHub.
+
+Render's free service may sleep while idle, so the first token request can
+take longer. Keep API secrets in Render and LiveKit Cloud; only the token API
+URL and public Turnstile site key belong in Vercel's frontend environment.
+
+### Optional conversation simulations
+
+The LiveKit simulations use real inference and can create calendar events.
+To enable them, add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
+`GOOGLE_SERVICE_ACCOUNT_JSON`, and a dedicated test `CALENDAR_ID` as GitHub
+Actions secrets. Without those secrets the workflow skips the simulations.
 
 ```console
 lk agent simulate --scenarios scenarios.yaml
 ```
 
-These run in CI on every merge to `main` via `.github/workflows/simulations.yml`.
-
-## Running it
-
-Requires [`uv`](https://docs.astral.sh/uv/) and a [LiveKit Cloud](https://cloud.livekit.io/) project.
+## Tests and checks
 
 ```console
-uv sync
-cp .env.example .env.local     # fill in LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, CALENDAR_ID
+uv run pytest
+uv run ruff check .
 ```
 
-For Google Calendar, place an OAuth client `credentials.json` in the project root; the first run opens a browser consent flow and caches `token.json`. Both files are gitignored. Point `CALENDAR_ID` at a throwaway calendar when running simulations so test bookings stay out of the real one.
-
-Talk to the agent in your terminal:
+Browser checks:
 
 ```console
-uv run python src/agent.py console
+cd web
+npm ci
+npm run lint
+npm run build
 ```
 
-Run it for a frontend or a phone number:
+Unit tests cover spoken date/time parsing, headless Google Calendar
+authentication, token grants, Turnstile verification, origin restrictions, and
+token endpoint rate limits. Conversation simulations exercise the full
+agent behavior on LiveKit Cloud.
 
-```console
-uv run python src/agent.py dev      # development
-uv run python src/agent.py start    # production
-```
+## Project layout
 
-A `Dockerfile` is included for deployment to LiveKit Cloud or any container host. Connect any [frontend starter](https://docs.livekit.io/frontends/) or a [SIP trunk](https://docs.livekit.io/telephony/) for real phone calls.
-
-## Layout
-
-```
-src/agent.py              Agent definition, prompt, and the three tools
-src/calendar_service.py   Google Calendar client, day/time parsing, slot logic
-tests/test_calendar.py    Unit tests for parsing and slot validation
-scenarios.yaml            33 conversation-level simulation scenarios
+```text
+src/agent.py                 LiveKit agent, instructions, and tools
+src/calendar_service.py      Google Calendar, parsing, and slot validation
+src/token_server.py          Turnstile-protected demo token endpoint
+tests/                       Calendar and token-service tests
+web/                         React browser demo
+web/token-api/               Minimal locked dependencies for Render
+scenarios.yaml               Conversation-level simulation scenarios
 ```
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Built from the [LiveKit Agents Python starter](https://github.com/livekit-examples/agent-starter-python).
+MIT. See [LICENSE](LICENSE).

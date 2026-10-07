@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: smilecare-demo-token-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.token-api
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_AGENT_NAME
+        value: voice-ai-receptionist
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: TURNSTILE_ALLOWED_HOSTNAME
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false

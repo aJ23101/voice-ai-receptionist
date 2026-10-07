@@ -3,11 +3,13 @@
 import datetime
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+import calendar_service
 from calendar_service import TIMEZONE, parse_day, parse_time
 
 
@@ -60,3 +62,40 @@ class TestParseTime:
     @pytest.mark.parametrize("text", ["10:15 am", "quarter past ten", "midnight-ish"])
     def test_invalid_slots_return_none(self, text):
         assert parse_time(text) is None
+
+
+def test_service_account_auth_supports_headless_deployment(monkeypatch):
+    credentials = object()
+    expected_service = object()
+    build = Mock(return_value=expected_service)
+    from_service_account = Mock(return_value=credentials)
+
+    monkeypatch.setenv(
+        "GOOGLE_SERVICE_ACCOUNT_JSON",
+        '{"type":"service_account","client_email":"demo@example.com"}',
+    )
+    monkeypatch.setattr(
+        calendar_service.service_account.Credentials,
+        "from_service_account_info",
+        from_service_account,
+    )
+    monkeypatch.setattr(calendar_service, "build", build)
+    monkeypatch.setattr(
+        calendar_service.os.path,
+        "exists",
+        Mock(side_effect=AssertionError("interactive OAuth files must not be read")),
+    )
+
+    assert calendar_service.get_service() is expected_service
+    from_service_account.assert_called_once_with(
+        {"type": "service_account", "client_email": "demo@example.com"},
+        scopes=calendar_service.SCOPES,
+    )
+    build.assert_called_once_with("calendar", "v3", credentials=credentials)
+
+
+def test_invalid_service_account_json_fails_explicitly(monkeypatch):
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_JSON", "{")
+
+    with pytest.raises(ValueError, match="valid JSON"):
+        calendar_service.get_service()

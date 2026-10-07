@@ -19,28 +19,48 @@ jobs:
       LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
       LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
       LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      CALENDAR_ID: ${{ secrets.CALENDAR_ID }}
 
     steps:
     - uses: actions/checkout@v6
 
+    - name: Check simulation secrets
+      id: simulation-secrets
+      run: |
+        if [ -n "$LIVEKIT_URL" ] && [ -n "$LIVEKIT_API_KEY" ] && \
+           [ -n "$LIVEKIT_API_SECRET" ] && [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ] && \
+           [ -n "$CALENDAR_ID" ]; then
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "configured=false" >> "$GITHUB_OUTPUT"
+          echo "Skipping simulations: configure LiveKit and dedicated demo-calendar secrets."
+        fi
+
     - name: Install uv
+      if: steps.simulation-secrets.outputs.configured == 'true'
       uses: astral-sh/setup-uv@v1
       with:
         version: "latest"
 
     - name: Set up Python
+      if: steps.simulation-secrets.outputs.configured == 'true'
       uses: actions/setup-python@v4
       with:
         python-version: "3.14"
 
     - name: Install dependencies
+      if: steps.simulation-secrets.outputs.configured == 'true'
       run: UV_GIT_LFS=1 uv sync
 
     - name: Download model files
+      if: steps.simulation-secrets.outputs.configured == 'true'
       run: uv run python src/agent.py download-files
 
     - name: Install LiveKit CLI
+      if: steps.simulation-secrets.outputs.configured == 'true'
       run: curl -sSL https://get.livekit.io/cli | bash
 
     - name: Run simulations
+      if: steps.simulation-secrets.outputs.configured == 'true'
       run: lk agent simulate --scenarios scenarios.yaml

@@ -13,6 +13,7 @@ dependencies = [
     "google-auth-httplib2>=0.4.2",
     "google-auth-oauthlib>=1.4.1",
     "livekit-agents>=1.6.9",
+    "livekit-api>=1.2.1",
     "livekit-plugins-ai-coustics~=0.2",
     "python-dotenv",
     "tzdata>=2026.4",
@@ -20,9 +21,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "fastapi>=0.142.2",
+    "httpx>=0.28.1",
+    "httpx2>=2.13.1",
     "pytest",
     "pytest-asyncio",
     "ruff",
+    "uvicorn>=0.54.0",
 ]
 
 [tool.uv]

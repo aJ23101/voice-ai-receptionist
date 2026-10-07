@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Try SmileCare, a voice AI receptionist that checks live dental appointment availability before it offers a time."
+    />
+    <meta name="theme-color" content="#fbfaf7" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SmileCare | A better first hello" />
+    <meta
+      property="og:description"
+      content="A voice AI receptionist demo, built with LiveKit Agents."
+    />
+    <title>SmileCare | A better first hello</title>
+    <script>
+      window.turnstileLoaded = () =>
+        window.dispatchEvent(new Event('turnstile-ready'))
+    </script>
+    <script
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=turnstileLoaded&render=explicit"
+      async
+      defer
+    ></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
