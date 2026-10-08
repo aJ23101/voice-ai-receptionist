@@ -1,4 +1,5 @@
 import logging
+import os
 import textwrap
 from dataclasses import dataclass
 
@@ -18,7 +19,7 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics
+from livekit.plugins import ai_coustics, deepgram, google
 
 from calendar_service import (
     book_appointment,
@@ -40,6 +41,29 @@ class CallLifecycle:
     end_after_silence: bool = False
     end_after_response: bool = False
     shutdown_triggered: bool = False
+
+
+def _require_api_key(env_var: str, provider: str) -> None:
+    if not os.getenv(env_var, "").strip():
+        raise RuntimeError(f"{env_var} is required to use {provider}.")
+
+
+def create_stt() -> deepgram.STT:
+    _require_api_key("DEEPGRAM_API_KEY", "direct Deepgram speech recognition")
+    return deepgram.STT(model="nova-3", language="en")
+
+
+def create_tts() -> deepgram.TTS:
+    _require_api_key("DEEPGRAM_API_KEY", "direct Deepgram speech synthesis")
+    return deepgram.TTS(model="aura-2-arcas-en")
+
+
+def create_llm() -> google.LLM:
+    _require_api_key("GOOGLE_API_KEY", "the direct Google Gemini model")
+    return google.LLM(
+        model="gemini-3.1-flash-lite",
+        thinking_config={"thinking_level": "minimal"},
+    )
 
 
 def _should_end_after_user_state(lifecycle: CallLifecycle, new_state: str) -> bool:
@@ -65,7 +89,7 @@ class Assistant(Agent):
         super().__init__(
             # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
             # See all available models at https://docs.livekit.io/agents/models/llm/
-            llm=inference.LLM(model="google/gemma-4-31b-it"),
+            llm=create_llm(),
             instructions=textwrap.dedent(
                 """\
                 You are the receptionist for SmileCare Dental Clinic in Delhi. You answer
@@ -286,11 +310,9 @@ async def my_agent(ctx: JobContext):
 
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears
-        stt=inference.STT(model="assemblyai/universal-3-5-pro", language="en"),
+        stt=create_stt(),
         # Text-to-speech (TTS) is your agent's voice
-        tts=inference.TTS(
-            model="fishaudio/s2.1-pro", voice="fa4c9eb3dccc4806b382b40d61c6b10a"
-        ),
+        tts=create_tts(),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
             interruption={"mode": "adaptive"},

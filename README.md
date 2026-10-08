@@ -46,7 +46,7 @@ Token API (FastAPI on Render)
         │
         ▼
 LiveKit Cloud agent (Python)
-  ├── LiveKit Inference: AssemblyAI STT, Gemma LLM, Fish Audio TTS
+  ├── Direct Deepgram STT and TTS, direct Google Gemini LLM
   └── Google Calendar: availability, booking, callback events
 ```
 
@@ -60,7 +60,7 @@ media publishing enabled and data publishing disabled.
 | Area | Technology |
 |---|---|
 | Voice agent | LiveKit Agents for Python |
-| Speech | AssemblyAI Universal 3.5 Pro, Gemma 4 31B, Fish Audio S2.1 Pro |
+| Speech | Deepgram Nova-3 / Aura-2, Gemini 3.1 Flash-Lite |
 | Browser | React, TypeScript, Vite, LiveKit React components |
 | Calendar | Google Calendar API, OAuth for local development or a service account in cloud |
 | Demo authentication | FastAPI, Cloudflare Turnstile, short-lived LiveKit tokens |
@@ -79,7 +79,11 @@ uv sync
 ```
 
 Copy `.env.example` to `.env.local` and set the LiveKit credentials and a
-dedicated test `CALENDAR_ID`. For local calendar development, place a Google
+dedicated test `CALENDAR_ID`. Add a Deepgram API key as `DEEPGRAM_API_KEY`;
+direct Deepgram STT and TTS use that provider key rather than LiveKit Inference
+credits. Add your Gemini API key as `GOOGLE_API_KEY`; the LLM connects directly
+to Google's Gemini API instead of using LiveKit Inference credits.
+For local calendar development, place a Google
 OAuth client file named `credentials.json` in the repository root; the first
 calendar request opens the consent flow and saves `token.json`. If Google's
 refresh token becomes invalid or is revoked, the next request opens the consent
@@ -137,8 +141,10 @@ The repository is public already. To make the browser demo accessible:
    `lk cloud auth` and `lk agent create` from the repository. The current
    deployment workflow and CLI commands are documented in the
    [LiveKit agent deployment guide](https://docs.livekit.io/deploy/agents/quickstart/).
-2. **Configure the deployed agent secrets.** Add `GOOGLE_SERVICE_ACCOUNT_JSON`
-   and `CALENDAR_ID` to the LiveKit Cloud agent secrets. Use a separate,
+2. **Configure the deployed agent secrets.** Add `DEEPGRAM_API_KEY`,
+   `GOOGLE_API_KEY`, `GOOGLE_SERVICE_ACCOUNT_JSON`, and `CALENDAR_ID` to the
+   LiveKit Cloud agent secrets. Create the Deepgram key in the
+   [Deepgram Console](https://console.deepgram.com/). Use a separate,
    throwaway Google Calendar, enable the Google Calendar API, and share the
    calendar with the service account. Never use a real clinic calendar for
    this public demo.

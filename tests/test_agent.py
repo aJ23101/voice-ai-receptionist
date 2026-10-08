@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from agent import (
@@ -10,11 +12,93 @@ from agent import (
     CallLifecycle,
     _should_end_after_agent_state,
     _should_end_after_user_state,
+    create_llm,
+    create_stt,
+    create_tts,
 )
 
 
-def test_assistant_registers_end_call_tool_with_listening_grace_period():
+def test_speech_synthesis_uses_direct_deepgram(monkeypatch):
+    tts_config = object()
+    calls = []
+
+    def fake_tts(**kwargs):
+        calls.append(kwargs)
+        return tts_config
+
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setattr("agent.deepgram.TTS", fake_tts)
+
+    assert create_tts() is tts_config
+    assert calls == [{"model": "aura-2-arcas-en"}]
+
+
+def test_speech_synthesis_requires_deepgram_api_key(monkeypatch):
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="DEEPGRAM_API_KEY"):
+        create_tts()
+
+
+def test_speech_recognition_uses_direct_deepgram(monkeypatch):
+    stt_config = object()
+    calls = []
+
+    def fake_stt(**kwargs):
+        calls.append(kwargs)
+        return stt_config
+
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "test-key")
+    monkeypatch.setattr("agent.deepgram.STT", fake_stt)
+
+    assert create_stt() is stt_config
+    assert calls == [{"model": "nova-3", "language": "en"}]
+
+
+def test_speech_recognition_requires_deepgram_api_key(monkeypatch):
+    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="DEEPGRAM_API_KEY"):
+        create_stt()
+
+
+def test_language_model_uses_google_gemini_directly(monkeypatch):
+    llm_config = object()
+    calls = []
+
+    def fake_llm(**kwargs):
+        calls.append(kwargs)
+        return llm_config
+
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setattr("agent.google.LLM", fake_llm)
+
+    assert create_llm() is llm_config
+    assert calls == [
+        {
+            "model": "gemini-3.1-flash-lite",
+            "thinking_config": {"thinking_level": "minimal"},
+        }
+    ]
+
+
+def test_language_model_requires_google_api_key(monkeypatch):
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="GOOGLE_API_KEY"):
+        create_llm()
+
+
+def test_assistant_preserves_existing_tools_and_call_ending(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
     assistant = Assistant()
+    assert {tool.info.name for tool in assistant.tools} == {
+        "end_call",
+        "check_availability",
+        "book_appointment_slot",
+        "request_callback",
+    }
+
     end_call_tool = next(
         tool for tool in assistant.tools if tool.info.name == "end_call"
     )

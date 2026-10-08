@@ -12,7 +12,7 @@ dependencies = [
     "google-api-python-client>=2.200.0",
     "google-auth-httplib2>=0.4.2",
     "google-auth-oauthlib>=1.4.1",
-    "livekit-agents>=1.6.9",
+    "livekit-agents[deepgram,google]~=1.8",
     "livekit-api>=1.2.1",
     "livekit-plugins-ai-coustics~=0.2",
     "python-dotenv",
