@@ -19,6 +19,7 @@ load_dotenv(".env.local")
 logger = logging.getLogger("calendar")
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+DEFAULT_SERVICE_ACCOUNT_FILE = "/etc/secrets/smilecare-receptionist-8587a082c9e6.json"
 
 # The calendar to read and write. Point CALENDAR_ID at a throwaway calendar
 # when running simulations, so test bookings stay out of the real one.
@@ -43,6 +44,19 @@ WEEKDAYS = [
 def get_service():
     """Authenticate and return a Google Calendar API client."""
     service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
+    if not service_account_json and service_account_file:
+        try:
+            with open(service_account_file, encoding="utf-8") as secret_file:
+                service_account_json = secret_file.read()
+        except OSError as error:
+            raise RuntimeError(
+                "Could not read the GOOGLE_SERVICE_ACCOUNT_FILE secret."
+            ) from error
+    elif not service_account_json and os.path.isfile(DEFAULT_SERVICE_ACCOUNT_FILE):
+        with open(DEFAULT_SERVICE_ACCOUNT_FILE, encoding="utf-8") as secret_file:
+            service_account_json = secret_file.read()
+
     if service_account_json:
         try:
             service_account_info = json.loads(service_account_json)

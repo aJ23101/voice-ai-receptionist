@@ -86,9 +86,11 @@ uv run python src/agent.py dev
 ```
 
 For the hosted agent, use a Google service account instead of interactive
-OAuth. Set `GOOGLE_SERVICE_ACCOUNT_JSON` to its JSON key and share the
-dedicated test calendar with the service account's email address. When this
-variable is present, the agent uses it without reading local OAuth files.
+OAuth. Share the calendar with the service account's email address. You can
+provide its key as `GOOGLE_SERVICE_ACCOUNT_JSON`, or mount the JSON key file in
+LiveKit Cloud at `/etc/secrets/smilecare-receptionist-8587a082c9e6.json`.
+Optionally set `GOOGLE_SERVICE_ACCOUNT_FILE` to a different mounted path. The
+agent uses the mounted key when the JSON environment variable is not set.
 
 ### 2. Start the token API
 

@@ -99,3 +99,75 @@ def test_invalid_service_account_json_fails_explicitly(monkeypatch):
 
     with pytest.raises(ValueError, match="valid JSON"):
         calendar_service.get_service()
+
+
+def test_service_account_auth_reads_mounted_secret_file(monkeypatch, tmp_path):
+    credentials = object()
+    expected_service = object()
+    secret_file = tmp_path / "service-account.json"
+    secret_file.write_text(
+        '{"type":"service_account","client_email":"mounted@example.com"}',
+        encoding="utf-8",
+    )
+    from_service_account = Mock(return_value=credentials)
+    build = Mock(return_value=expected_service)
+
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_FILE", str(secret_file))
+    monkeypatch.setattr(
+        calendar_service.service_account.Credentials,
+        "from_service_account_info",
+        from_service_account,
+    )
+    monkeypatch.setattr(calendar_service, "build", build)
+
+    assert calendar_service.get_service() is expected_service
+    from_service_account.assert_called_once_with(
+        {"type": "service_account", "client_email": "mounted@example.com"},
+        scopes=calendar_service.SCOPES,
+    )
+    build.assert_called_once_with("calendar", "v3", credentials=credentials)
+
+
+def test_missing_configured_service_account_file_fails_explicitly(
+    monkeypatch, tmp_path
+):
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.setenv(
+        "GOOGLE_SERVICE_ACCOUNT_FILE",
+        str(tmp_path / "missing-service-account.json"),
+    )
+
+    with pytest.raises(RuntimeError, match="GOOGLE_SERVICE_ACCOUNT_FILE"):
+        calendar_service.get_service()
+
+
+def test_service_account_file_defaults_to_livekit_mounted_secret(monkeypatch, tmp_path):
+    credentials = object()
+    expected_service = object()
+    secret_file = tmp_path / "mounted-secret.json"
+    secret_file.write_text(
+        '{"type":"service_account","client_email":"mounted@example.com"}',
+        encoding="utf-8",
+    )
+    from_service_account = Mock(return_value=credentials)
+    build = Mock(return_value=expected_service)
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_FILE", raising=False)
+    monkeypatch.setattr(
+        calendar_service,
+        "DEFAULT_SERVICE_ACCOUNT_FILE",
+        str(secret_file),
+    )
+    monkeypatch.setattr(
+        calendar_service.service_account.Credentials,
+        "from_service_account_info",
+        from_service_account,
+    )
+    monkeypatch.setattr(calendar_service, "build", build)
+
+    assert calendar_service.get_service() is expected_service
+    from_service_account.assert_called_once_with(
+        {"type": "service_account", "client_email": "mounted@example.com"},
+        scopes=calendar_service.SCOPES,
+    )
