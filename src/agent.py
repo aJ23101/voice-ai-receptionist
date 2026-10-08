@@ -1,14 +1,18 @@
 import logging
 import textwrap
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
 from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    AgentStateChangedEvent,
+    CloseEvent,
     JobContext,
     RunContext,
     TurnHandlingOptions,
+    UserStateChangedEvent,
     cli,
     function_tool,
     inference,
@@ -27,6 +31,33 @@ from calendar_service import (
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
+
+END_CALL_GRACE_SECONDS = 5.0
+
+
+@dataclass
+class CallLifecycle:
+    end_after_silence: bool = False
+    end_after_response: bool = False
+    shutdown_triggered: bool = False
+
+
+def _should_end_after_user_state(lifecycle: CallLifecycle, new_state: str) -> bool:
+    if new_state == "speaking":
+        lifecycle.end_after_silence = False
+        lifecycle.end_after_response = False
+        return False
+    if new_state == "away" and lifecycle.end_after_silence:
+        lifecycle.shutdown_triggered = True
+        return True
+    return False
+
+
+def _should_end_after_agent_state(lifecycle: CallLifecycle, new_state: str) -> bool:
+    if new_state == "listening" and lifecycle.end_after_response:
+        lifecycle.shutdown_triggered = True
+        return True
+    return False
 
 
 class Assistant(Agent):
@@ -73,6 +104,25 @@ class Assistant(Agent):
                   it gives you.
                 - Repeat the caller's name back to confirm you heard it correctly.
 
+                # Ending the call
+
+                - Once the caller's request is complete, do not keep the call open or
+                  ask repeatedly whether they need anything else.
+                - After a successful booking or callback request, use the end_call tool
+                  as the final action. Give one brief closing response that accurately
+                  confirms the completed request, thanks the caller, and says goodbye;
+                  leave caller_explicitly_said_goodbye false unless they already said it.
+                - If the caller says goodbye, thanks you, or clearly says they are done,
+                  use the end_call tool with caller_explicitly_said_goodbye set to true
+                  and give a brief goodbye. The call ends as soon as that response ends.
+                - For a completed information request, answer briefly; if the caller
+                  indicates they are satisfied or finished, use end_call.
+                - Do not use end_call while the caller still has an unresolved request
+                  or while booking/callback work has failed.
+                - After the closing, remain available briefly for the caller to speak.
+                  If they do not respond within five seconds, the call will end
+                  automatically. If they speak, continue helping them.
+
                 # What you cannot do
 
                 - You can only look up availability, create new appointments, and log
@@ -107,6 +157,25 @@ class Assistant(Agent):
                 - Protect privacy and minimize sensitive data.
                 """
             ),
+        )
+
+    @function_tool
+    async def end_call(
+        self, context: RunContext, caller_explicitly_said_goodbye: bool = False
+    ) -> str:
+        """Finish a completed request, or end immediately after a caller's goodbye.
+
+        Args:
+            caller_explicitly_said_goodbye: Set true only when the caller explicitly
+                said goodbye or clearly said they are finished.
+        """
+        lifecycle = context.session.userdata
+        lifecycle.end_after_response = caller_explicitly_said_goodbye
+        lifecycle.end_after_silence = not caller_explicitly_said_goodbye
+        return (
+            "Give one brief final response. If a booking or callback was successfully "
+            "completed, confirm it accurately, then thank the caller and say goodbye. "
+            "Otherwise, thank the caller and say goodbye. Do not ask another question."
         )
 
     @function_tool
@@ -227,8 +296,32 @@ async def my_agent(ctx: JobContext):
             interruption={"mode": "adaptive"},
             preemptive_generation={"enabled": True},
         ),
+        userdata=CallLifecycle(),
+        user_away_timeout=END_CALL_GRACE_SECONDS,
         expressive=True,
     )
+
+    @session.on("user_state_changed")
+    def on_user_state_changed(event: UserStateChangedEvent) -> None:
+        if _should_end_after_user_state(session.userdata, event.new_state):
+            logger.info("Ending call after caller silence")
+            session.shutdown()
+
+    @session.on("agent_state_changed")
+    def on_agent_state_changed(event: AgentStateChangedEvent) -> None:
+        if _should_end_after_agent_state(session.userdata, event.new_state):
+            logger.info("Ending call after caller said goodbye")
+            session.shutdown()
+
+    @session.on("close")
+    def on_session_close(event: CloseEvent) -> None:
+        if session.userdata.shutdown_triggered:
+
+            async def delete_room() -> None:
+                await ctx.delete_room()
+
+            ctx.add_shutdown_callback(delete_room)
+            ctx.shutdown(reason=event.reason.value)
 
     await session.start(
         agent=Assistant(),

@@ -22,6 +22,10 @@ an interactive portfolio project, not a real clinic service.
   the conversation.
 - Unsupported requests, including cancellations, pricing, and medical advice,
   are handled honestly and routed to a callback request.
+- After a booking or callback is completed, the agent gives a brief closing,
+  listens for five seconds in case the caller has another request, and ends the
+  call automatically if the caller stays silent. If the caller says goodbye,
+  the call ends as soon as the agent finishes its final response.
 - A purpose-built browser UI connects to the LiveKit agent over WebRTC.
 
 > **Demo safety:** Use a dedicated test Google Calendar and fictional details.
@@ -77,7 +81,9 @@ uv sync
 Copy `.env.example` to `.env.local` and set the LiveKit credentials and a
 dedicated test `CALENDAR_ID`. For local calendar development, place a Google
 OAuth client file named `credentials.json` in the repository root; the first
-calendar request opens the consent flow and saves `token.json`.
+calendar request opens the consent flow and saves `token.json`. If Google's
+refresh token becomes invalid or is revoked, the next request opens the consent
+flow again and replaces the cached token.
 
 Run the agent:
 

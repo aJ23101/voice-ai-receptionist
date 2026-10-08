@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from google.auth.exceptions import RefreshError
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -99,6 +100,45 @@ def test_invalid_service_account_json_fails_explicitly(monkeypatch):
 
     with pytest.raises(ValueError, match="valid JSON"):
         calendar_service.get_service()
+
+
+def test_invalid_oauth_refresh_grant_starts_new_consent_flow(monkeypatch, tmp_path):
+    stale_credentials = Mock(
+        valid=False,
+        expired=True,
+        refresh_token="stale-refresh-token",
+    )
+    stale_credentials.refresh.side_effect = RefreshError("invalid_grant")
+    refreshed_credentials = Mock(
+        valid=True, to_json=Mock(return_value='{"token":"new"}')
+    )
+    oauth_flow = Mock(run_local_server=Mock(return_value=refreshed_credentials))
+    expected_service = object()
+
+    (tmp_path / "token.json").write_text("stale token", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_FILE", raising=False)
+    monkeypatch.setattr(
+        calendar_service.Credentials,
+        "from_authorized_user_file",
+        Mock(return_value=stale_credentials),
+    )
+    monkeypatch.setattr(
+        calendar_service.InstalledAppFlow,
+        "from_client_secrets_file",
+        Mock(return_value=oauth_flow),
+    )
+    monkeypatch.setattr(
+        calendar_service,
+        "build",
+        Mock(return_value=expected_service),
+    )
+
+    assert calendar_service.get_service() is expected_service
+    stale_credentials.refresh.assert_called_once()
+    oauth_flow.run_local_server.assert_called_once_with(port=0)
+    assert (tmp_path / "token.json").read_text(encoding="utf-8") == '{"token":"new"}'
 
 
 def test_service_account_auth_reads_mounted_secret_file(monkeypatch, tmp_path):

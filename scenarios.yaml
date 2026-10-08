@@ -16,6 +16,20 @@ scenarios:
     tags:
       feature: clinic-info
 
+  - label: Ends call after caller says goodbye
+    instructions: |
+      PERSONA: A caller who only wants the clinic address and is ready to leave.
+      OPENING LINE: "Can you tell me the clinic address?"
+      DO, IN ORDER:
+      1. After the assistant gives the address, say: "Thanks, that's all. Goodbye."
+      2. Do not say anything else.
+    agent_expectations: >
+      Gives the clinic address, responds with one brief polite goodbye, and
+      ends the call as soon as that final response completes, without asking
+      another question.
+    tags:
+      feature: call-ending
+
   - label: Books an appointment end to end
     instructions: |
       PERSONA: A patient who wants a cleaning appointment and cooperates fully.
@@ -25,7 +39,8 @@ scenarios:
       2. Your name is Priya Nair. You want a cleaning.
       3. When asked for a day, say "tomorrow".
       4. When offered times, pick the first one offered.
-      5. Confirm when asked, then end the conversation.
+      5. Confirm when asked. After the appointment is confirmed, listen to the
+         agent's brief closing message; do not ask anything else.
     agent_expectations: >
       Collects the patient name, service, day, and time, asking one question
       at a time rather than several at once. Offers only specific times it
@@ -33,6 +48,7 @@ scenarios:
       time, and any time it states as booked must be one the caller named or
       the agent offered, and must never be one the agent previously said was
       unavailable.
+      After successfully booking, gives a concise closing and ends the call.
     tags:
       feature: booking
 
@@ -515,4 +531,3 @@ scenarios:
       and must never be one the agent previously said was unavailable.
     tags:
       feature: ambiguity
-
