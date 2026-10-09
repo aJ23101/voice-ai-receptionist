@@ -25,6 +25,13 @@ class TestParseDay:
     def test_tomorrow(self):
         assert parse_day("tomorrow") == today() + datetime.timedelta(days=1)
 
+    @pytest.mark.parametrize("text", ["today please", "now please", "tomorrow at 3"])
+    def test_today_and_tomorrow_keywords_allow_extra_words(self, text):
+        if "today" in text or text == "now please":
+            assert parse_day(text) == today()
+        else:
+            assert parse_day(text) == today() + datetime.timedelta(days=1)
+
     def test_weekday_name_resolves_within_a_week(self):
         result = parse_day("thursday")
         assert result is not None

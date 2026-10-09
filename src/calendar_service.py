@@ -161,10 +161,10 @@ def parse_day(text: str) -> datetime.date | None:
     text = text.strip().lower()
     today = datetime.datetime.now(TIMEZONE).date()
 
-    if text in ("today", "now"):
+    if "today" in text or "now" in text:
         return today
 
-    if text in ("tomorrow", "tmrw"):
+    if "tomorrow" in text or "tmrw" in text:
         return today + datetime.timedelta(days=1)
 
     for offset in range(7):
