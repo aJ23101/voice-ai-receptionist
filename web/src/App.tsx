@@ -33,9 +33,15 @@ function App() {
     setCallStatus('ready')
   }, [])
 
-  const handleChallengeError = useCallback(() => {
+  const handleChallengeError = useCallback((errorCode: string) => {
     setChallengeToken(null)
-    setError('Human verification could not load. Please try again.')
+    setError(
+      `Cloudflare verification failed (${errorCode}). Click Retry verification. If it keeps failing, try another browser or network and check that extensions or a VPN are not blocking Cloudflare.`,
+    )
+  }, [])
+
+  const handleChallengeRetry = useCallback(() => {
+    setError('')
   }, [])
 
   const handleChallengeExpired = useCallback(() => {
@@ -205,6 +211,7 @@ function App() {
                           onVerified={handleVerified}
                           onError={handleChallengeError}
                           onExpired={handleChallengeExpired}
+                          onRetry={handleChallengeRetry}
                         />
                       ) : (
                         <p className="setup-notice">Loading human verification...</p>
@@ -369,8 +376,9 @@ function App() {
 interface TurnstileChallengeProps {
   siteKey: string
   onVerified: (token: string) => void
-  onError: () => void
+  onError: (errorCode: string) => void
   onExpired: () => void
+  onRetry: () => void
 }
 
 function TurnstileChallenge({
@@ -378,28 +386,54 @@ function TurnstileChallenge({
   onVerified,
   onError,
   onExpired,
+  onRetry,
 }: TurnstileChallengeProps) {
   const container = useRef<HTMLDivElement>(null)
+  const widgetId = useRef<string | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (!container.current || !window.turnstile) return
 
-    const widgetId = window.turnstile.render(container.current, {
+    const id = window.turnstile.render(container.current, {
       sitekey: siteKey,
       action: 'voice-demo',
       callback: onVerified,
       'expired-callback': onExpired,
-      'error-callback': onError,
+      'error-callback': (errorCode) => {
+        setFailed(true)
+        onError(errorCode)
+      },
     })
-    return () => window.turnstile?.remove(widgetId)
+    widgetId.current = id
+    return () => {
+      window.turnstile?.remove(id)
+      widgetId.current = null
+    }
   }, [onError, onExpired, onVerified, siteKey])
 
   return (
-    <div
-      className="turnstile-widget"
-      ref={container}
-      aria-label="Human verification"
-    />
+    <div className="turnstile-container">
+      <div
+        className="turnstile-widget"
+        ref={container}
+        aria-label="Human verification"
+      />
+      {failed && (
+        <button
+          className="verification-retry"
+          type="button"
+          onClick={() => {
+            if (!widgetId.current || !window.turnstile) return
+            setFailed(false)
+            onRetry()
+            window.turnstile.reset(widgetId.current)
+          }}
+        >
+          Retry verification
+        </button>
+      )}
+    </div>
   )
 }
 

@@ -378,6 +378,28 @@
   min-height: 58px;
 }
 
+.turnstile-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.verification-retry {
+  border: 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: #315f47;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.verification-retry:focus-visible {
+  outline: 2px solid #9dbca0;
+  outline-offset: 2px;
+}
+
 .setup-notice {
   color: #886a36;
   font-size: 11px;
